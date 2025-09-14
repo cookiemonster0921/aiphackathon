@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GDACS Disaster Events World Map</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        
+        .header h1 {
+            margin: 0;
+            color: #333;
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 0.7rem 1.5rem;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .map-container {
+            margin: 0 1rem 1rem 1rem;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            background: white;
+        }
+        
+        #map {
+            height: 70vh;
+            width: 100%;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            z-index: 1000;
+            min-width: 200px;
+        }
+        
+        .legend h3 {
+            margin: 0 0 0.5rem 0;
+            color: #333;
+            font-size: 1rem;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 0.3rem 0;
+            font-size: 0.85rem;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            border: 2px solid rgba(255,255,255,0.8);
+        }
+        
+        .status {
+            text-align: center;
+            padding: 1rem;
+            margin: 0 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            color: white;
+            font-weight: 500;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 0.5rem;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1rem;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-width: 250px;
+        }
+        
+        .custom-popup {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .popup-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+        
+        .popup-details {
+            font-size: 0.85rem;
+            color: #666;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌍 GDACS Global Disaster Events Map</h1>
+        <div class="controls">
+            <button id="loadData" class="btn">📊 Load Disaster Data</button>
+            <button id="clearMap" class="btn">🧹 Clear Map</button>
+            <button id="centerMap" class="btn">🎯 Center View</button>
+        </div>
+    </div>
+    
+    <div id="status" class="status" style="display: none;"></div>
+    
+    <div class="map-container">
+        <div id="map"></div>
+        
+        <div class="legend">
+            <h3>📋 Event Types</h3>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #e74c3c;"></div>
+                <span>Earthquake</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #3498db;"></div>
+                <span>Flood</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #f39c12;"></div>
+                <span>Volcano</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #27ae60;"></div>
+                <span>Cyclone</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #9b59b6;"></div>
+                <span>Other</span>
+            </div>
+        </div>
+      
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script>
+        // Initialize the map
+        let map = L.map('map').setView([20, 0], 2);
+        let markersLayer = L.layerGroup().addTo(map);
+        
+        // Add OpenStreetMap tiles (free)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 18
+        }).addTo(map);
+        
+        // Event type colors
+        const eventColors = {
+            'earthquake': '#e74c3c',
+            'flood': '#3498db',
+            'volcano': '#f39c12',
+            'cyclone': '#27ae60',
+            'default': '#9b59b6'
+        };
+        
+        function getEventColor(eventType) {
+            if (!eventType) return eventColors.default;
+            const type = eventType.toLowerCase();
+            for (let key in eventColors) {
+                if (type.includes(key)) {
+                    return eventColors[key];
+                }
+            }
+            return eventColors.default;
+        }
+        
+        function createCustomMarker(lat, lng, data) {
+            const eventType = data.eventtype || data.type || 'unknown';
+            const color = getEventColor(eventType);
+            
+            const customIcon = L.divIcon({
+                html: `<div style="
+                    width: 20px;
+                    height: 20px;
+                    background: ${color};
+                    border: 3px solid white;
+                    border-radius: 50%;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                    animation: pulse 2s infinite;
+                "></div>
+                <style>
+                    @keyframes pulse {
+                        0% { transform: scale(1); opacity: 1; }
+                        50% { transform: scale(1.2); opacity: 0.7; }
+                        100% { transform: scale(1); opacity: 1; }
+                    }
+                </style>`,
+                className: 'custom-marker',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10],
+                popupAnchor: [0, -10]
+            });
+            
+            return L.marker([lat, lng], { icon: customIcon });
+        }
+        
+        function showStatus(message, isLoading = false) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.style.display = 'block';
+            statusDiv.innerHTML = isLoading ? 
+                `<span class="loading"></span>${message}` : 
+                message;
+        }
+        
+        function hideStatus() {
+            document.getElementById('status').style.display = 'none';
+        }
+        
+        async function loadGDACSData() {
+            const loadBtn = document.getElementById('loadData');
+            loadBtn.disabled = true;
+            
+            showStatus('Fetching GDACS disaster data...', true);
+            
+            try {
+                const csvUrl = 'https://data.humdata.org/dataset/a87f96f8-16e6-4d51-872c-cfa54a8251ec/resource/4ef001d1-7888-4f5d-98ce-0ca8006787f7/download/gdacs_rss_information.csv';
+                
+                // Fetch CSV data
+                const response = await fetch(csvUrl);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                var csvText = await response.text();
+                csvText = `id,iso3,country,title,summary,event_type,severity_unit,severity_value,source,from_date,to_date,link,geo_lat,geo_long,gdacs_bbox
+#event+id,#country+code,#country+name,#meta+title,#meta+summary,#event+type,#event+severity+unit,#event+severity+value,#meta+source,#date+start,#date+end,#meta+link,#geo+lat,#geo+lon,#geo+bbox
+EQ1500022,RUS,Russian Federation,"Orange earthquake alert (Magnitude 7.4M, Depth:39.465km) in Russian Federation 13/09/2025 02:37 UTC, 20 thousand (in MMI>=VII).","On 9/13/2025 2:37:54 AM, an earthquake occurred in Russian Federation potentially affecting 20 thousand (in MMI>=VII). The earthquake had Magnitude 7.4M, Depth:39.465km.",Earthquake,M,7.4,Joint Research Center of the European Commission,"Sat, 13 Sep 2025 02:37:54 GMT","Sat, 13 Sep 2025 02:37:54 GMT",https://www.gdacs.org/report.aspx?eventtype=EQ&eventid=1500022,53.1043,160.2938,156.2938 164.2938 49.1043 57.1043
+EQ1499962,,,"Green earthquake alert (Magnitude 5.6M, Depth:10km) in [unknown] 12/09/2025 17:46 UTC, No people affected in 100km.","On 9/12/2025 5:46:45 PM, an earthquake occurred in [unknown] potentially affecting No people affected in 100km. The earthquake had Magnitude 5.6M, Depth:10km.",Earthquake,M,5.6,Joint Research Center of the European Commission,"Fri, 12 Sep 2025 17:46:45 GMT","Fri, 12 Sep 2025 17:46:45 GMT",https://www.gdacs.org/report.aspx?eventtype=EQ&eventid=1499962,-39.3896,-15.6077,-19.6077 -11.6077 -43.3896 -35.3896
+WF1025034,AUS,Australia,Green forest fire alert in Australia,"On 12/09/2025, a forest fire started in Australia,  until 13/09/2025.",Wildfire,ha,16152,Joint Research Center of the European Commission,"Fri, 12 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025034,-18.239661837237175,123.06288246952565,119.062882469526 127.062882469526 -22.2396618372372 -14.2396618372372
+TC1001208,,Mexico,Green alert for tropical cyclone MARIO-25. Population affected by Category 1 (120 km/h) wind speeds or higher is 0  (0 in Tropical Storm).,"From 11/09/2025 to 13/09/2025, a Tropical Depression (maximum wind speed of 65 km/h) MARIO-25 was active in EastPacific. The cyclone affects these countries: Mexico (vulnerability [unknown]). Estimated population affected by category 1 (120 km/h) wind speeds or higher is 0  (0 in tropical storm).",Tropical Cyclone,km/h,64.8144,Joint Research Center of the European Commission,"Thu, 11 Sep 2025 21:00:00 GMT","Sat, 13 Sep 2025 06:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=TC&eventid=1001208,18.3,-105.3,-116.200968196202 -90.2009681962018 4.57555644033413 30.5755564403341
+WF1025044,BRA,Brazil,Green forest fire alert in Brazil,"On 11/09/2025, a forest fire started in Brazil,  until 13/09/2025.",Wildfire,ha,7714,Joint Research Center of the European Commission,"Thu, 11 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025044,-11.699245745627278,-46.585099686851478,-50.5850996868515 -42.5850996868515 -15.6992457456273 -7.69924574562728
+WF1025045,MOZ,Mozambique,Green forest fire alert in Mozambique,"On 11/09/2025, a forest fire started in Mozambique,  until 13/09/2025.",Wildfire,ha,6112,Joint Research Center of the European Commission,"Thu, 11 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025045,-12.300147025157427,36.994678692225044,32.994678692225 40.994678692225 -16.3001470251574 -8.30014702515743
+WF1025038,BRA,Brazil,Green forest fire alert in Brazil,"On 11/09/2025, a forest fire started in Brazil,  until 13/09/2025.",Wildfire,ha,7219,Joint Research Center of the European Commission,"Thu, 11 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025038,-11.697825522155057,-46.588138550374183,-50.5881385503742 -42.5881385503742 -15.6978255221551 -7.69782552215506
+WF1025039,BRA,Brazil,Green forest fire alert in Brazil,"On 11/09/2025, a forest fire started in Brazil,  until 13/09/2025.",Wildfire,ha,7451,Joint Research Center of the European Commission,"Thu, 11 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025039,-14.192018155447395,-46.241968852493507,-50.2419688524935 -42.2419688524935 -18.1920181554474 -10.1920181554474
+WF1025030,MDG,Madagascar,Green forest fire alert in Madagascar,"On 11/09/2025, a forest fire started in Madagascar,  until 13/09/2025.",Wildfire,ha,8247,Joint Research Center of the European Commission,"Thu, 11 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025030,-16.200025187870612,46.862080486540883,42.8620804865409 50.8620804865409 -20.2000251878706 -12.2000251878706
+WF1025032,ZAF,South Africa,Green forest fire alert in South Africa,"On 11/09/2025, a forest fire started in South Africa,  until 13/09/2025.",Wildfire,ha,8117,Joint Research Center of the European Commission,"Thu, 11 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025032,-22.817342523897718,31.038748108977877,27.0387481089779 35.0387481089779 -26.8173425238977 -18.8173425238977
+WF1025023,AUS,Australia,Green forest fire alert in Australia,"On 10/09/2025, a forest fire started in Australia,  until 13/09/2025.",Wildfire,ha,16118,Joint Research Center of the European Commission,"Wed, 10 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025023,-18.140393572589808,123.13820943785869,119.138209437859 127.138209437859 -22.1403935725898 -14.1403935725898
+WF1025025,AUS,Australia,Green forest fire alert in Australia,"On 10/09/2025, a forest fire started in Australia,  until 13/09/2025.",Wildfire,ha,18847,Joint Research Center of the European Commission,"Wed, 10 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025025,-12.315767163106717,135.36566337748596,131.365663377486 139.365663377486 -16.3157671631067 -8.31576716310672
+WF1025031,AUS,Australia,Green forest fire alert in Australia,"On 10/09/2025, a forest fire started in Australia,  until 12/09/2025.",Wildfire,ha,6483,Joint Research Center of the European Commission,"Wed, 10 Sep 2025 00:00:00 GMT","Fri, 12 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025031,-19.537909534910948,146.560701711369,142.560701711369 150.560701711369 -23.5379095349109 -15.5379095349109
+WF1025035,AUS,Australia,Green forest fire alert in Australia,"On 10/09/2025, a forest fire started in Australia,  until 12/09/2025.",Wildfire,ha,7311,Joint Research Center of the European Commission,"Wed, 10 Sep 2025 00:00:00 GMT","Fri, 12 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025035,-19.541431077825592,146.55834644051762,142.558346440518 150.558346440518 -23.5414310778256 -15.5414310778256
+WF1025018,AUS,Australia,Green forest fire alert in Australia,"On 10/09/2025, a forest fire started in Australia,  until 13/09/2025.",Wildfire,ha,7707,Joint Research Center of the European Commission,"Wed, 10 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025018,-18.039811690890893,123.1230374053975,119.123037405397 127.123037405397 -22.0398116908909 -14.0398116908909
+WF1025040,BRA,Brazil,Green forest fire alert in Brazil,"On 10/09/2025, a forest fire started in Brazil,  until 13/09/2025.",Wildfire,ha,6162,Joint Research Center of the European Commission,"Wed, 10 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025040,-11.825118767456525,-50.569722764162009,-54.569722764162 -46.569722764162 -15.8251187674565 -7.82511876745652
+WF1025046,AGO,Angola,Green forest fire alert in Angola,"On 10/09/2025, a forest fire started in Angola,  until 13/09/2025.",Wildfire,ha,5452,Joint Research Center of the European Commission,"Wed, 10 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025046,-16.621419024578096,17.016842758597686,13.0168427585977 21.0168427585977 -20.6214190245781 -12.6214190245781
+WF1025012,AUS,Australia,Green forest fire alert in Australia,"On 10/09/2025, a forest fire started in Australia,  until 12/09/2025.",Wildfire,ha,14455,Joint Research Center of the European Commission,"Wed, 10 Sep 2025 00:00:00 GMT","Fri, 12 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025012,-17.897031224591828,123.38147178114644,119.381471781146 127.381471781146 -21.8970312245918 -13.8970312245918
+WF1025022,BRA,Brazil,Green forest fire alert in Brazil,"On 10/09/2025, a forest fire started in Brazil,  until 12/09/2025.",Wildfire,ha,7709,Joint Research Center of the European Commission,"Wed, 10 Sep 2025 00:00:00 GMT","Fri, 12 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025022,-8.9737300896079937,-46.105148430751107,-50.1051484307511 -42.1051484307511 -12.973730089608 -4.97373008960799
+WF1025024,AUS,Australia,Green forest fire alert in Australia,"On 10/09/2025, a forest fire started in Australia,  until 12/09/2025.",Wildfire,ha,6770,Joint Research Center of the European Commission,"Wed, 10 Sep 2025 00:00:00 GMT","Fri, 12 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025024,-18.165143373180644,144.53555045342986,140.53555045343 148.53555045343 -22.1651433731806 -14.1651433731806
+TC1001207,,,Green alert for tropical cyclone BLOSSOM-26. Population affected by Category 1 (120 km/h) wind speeds or higher is 0  (0 in Tropical Storm).,"From 09/09/2025 to 11/09/2025, a Low (maximum wind speed of 74 km/h) BLOSSOM-26 was active in SWIndian. The cyclone affects these countries: [unknown] (vulnerability [unknown]). Estimated population affected by category 1 (120 km/h) wind speeds or higher is 0  (0 in tropical storm).",Tropical Cyclone,km/h,73.888416,Joint Research Center of the European Commission,"Tue, 09 Sep 2025 06:00:00 GMT","Thu, 11 Sep 2025 12:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=TC&eventid=1001207,-9.18,63.09,50.0589811994176 76.0589811994176 -22.2864885162491 3.71351148375095
+EQ1499489,USA,United States,"Green earthquake alert (Magnitude 5.8M, Depth:13.843km) in United States 09/09/2025 04:08 UTC, 10 thousand in MMI IV.","On 9/9/2025 4:08:01 AM, an earthquake occurred in United States potentially affecting 10 thousand in MMI IV. The earthquake had Magnitude 5.8M, Depth:13.843km.",Earthquake,M,5.8,Joint Research Center of the European Commission,"Tue, 09 Sep 2025 04:08:01 GMT","Tue, 09 Sep 2025 04:08:01 GMT",https://www.gdacs.org/report.aspx?eventtype=EQ&eventid=1499489,42.3696,-126.4413,-130.4413 -122.4413 38.3696 46.3696
+FL1103493,ESP,Spain,Green flood alert in Spain,"On 09/09/2025, a flood started in Spain, lasting until 11/09/2025 (last update). The flood caused 0 deaths and 0 displaced .",Flood,,0,Joint Research Center of the European Commission,"Tue, 09 Sep 2025 01:00:00 GMT","Thu, 11 Sep 2025 01:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=FL&eventid=1103493,39.613432,2.8829185,-1.1170815 6.8829185 35.613432 43.613432
+FL1103494,IDN,Indonesia,Green flood alert in Indonesia,"On 09/09/2025, a flood started in Indonesia, lasting until 11/09/2025 (last update). The flood caused 19 deaths and 85 displaced .",Flood,,0,Joint Research Center of the European Commission,"Tue, 09 Sep 2025 01:00:00 GMT","Thu, 11 Sep 2025 01:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=FL&eventid=1103494,-8.6868473,115.1848465,111.1848465 119.1848465 -12.6868473 -4.6868473
+FL1103497,MYS,Malaysia,Green flood alert in Malaysia,"On 09/09/2025, a flood started in Malaysia, lasting until 11/09/2025 (last update). The flood caused 0 deaths and 252 displaced .",Flood,,0,Joint Research Center of the European Commission,"Tue, 09 Sep 2025 01:00:00 GMT","Thu, 11 Sep 2025 01:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=FL&eventid=1103497,5.8626228,116.1138146,112.1138146 120.1138146 1.8626228 9.8626228
+WF1025026,BRA,Brazil,Green forest fire alert in Brazil,"On 09/09/2025, a forest fire started in Brazil,  until 13/09/2025.",Wildfire,ha,7444,Joint Research Center of the European Commission,"Tue, 09 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025026,-13.930595912072418,-48.241658300579388,-52.2416583005794 -44.2416583005794 -17.9305959120724 -9.93059591207242
+WF1025027,BRA,Brazil,Green forest fire alert in Brazil,"On 09/09/2025, a forest fire started in Brazil,  until 13/09/2025.",Wildfire,ha,8281,Joint Research Center of the European Commission,"Tue, 09 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025027,-9.06541731005305,-47.083584078042165,-51.0835840780422 -43.0835840780422 -13.0654173100531 -5.06541731005305
+WF1025036,BRA,Brazil,Green forest fire alert in Brazil,"On 09/09/2025, a forest fire started in Brazil,  until 13/09/2025.",Wildfire,ha,9360,Joint Research Center of the European Commission,"Tue, 09 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025036,-15.135446193678151,-52.4485119781443,-56.4485119781443 -48.4485119781443 -19.1354461936781 -11.1354461936782
+FL1103496,PHL,Philippines,Green flood alert in Philippines,"On 08/09/2025, a flood started in Philippines, lasting until 11/09/2025 (last update). The flood caused 0 deaths and 0 displaced .",Flood,,0,Joint Research Center of the European Commission,"Mon, 08 Sep 2025 01:00:00 GMT","Thu, 11 Sep 2025 01:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=FL&eventid=1103496,6.7002854,124.7381005,120.7381005 128.7381005 2.7002854 10.7002854
+FL1103492,DEU,Germany,Green flood alert in Germany,"On 08/09/2025, a flood started in Germany, lasting until 10/09/2025 (last update). The flood caused 0 deaths and 55 displaced .",Flood,,0,Joint Research Center of the European Commission,"Mon, 08 Sep 2025 01:00:00 GMT","Wed, 10 Sep 2025 01:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=FL&eventid=1103492,51.2641433,6.5446958,2.5446958 10.5446958 47.2641433 55.2641433
+WF1025013,BRA,Brazil,Green forest fire alert in Brazil,"On 08/09/2025, a forest fire started in Brazil,  until 13/09/2025.",Wildfire,ha,5811,Joint Research Center of the European Commission,"Mon, 08 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025013,-6.8615028917948369,-47.903032935395416,-51.9030329353954 -43.9030329353954 -10.8615028917948 -2.86150289179484
+WF1025037,BRA,Brazil,Green forest fire alert in Brazil,"On 07/09/2025, a forest fire started in Brazil,  until 13/09/2025.",Wildfire,ha,6288,Joint Research Center of the European Commission,"Sun, 07 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025037,-14.391655283005498,-47.317727083750668,-51.3177270837507 -43.3177270837507 -18.3916552830055 -10.3916552830055
+WF1025033,MOZ,Mozambique,Green forest fire alert in Mozambique,"On 07/09/2025, a forest fire started in Mozambique,  until 13/09/2025.",Wildfire,ha,7056,Joint Research Center of the European Commission,"Sun, 07 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025033,-12.618439934329411,36.80786588669568,32.8078658866957 40.8078658866957 -16.6184399343294 -8.61843993432941
+WF1025041,TZA,Tanzania,Green forest fire alert in Tanzania,"On 07/09/2025, a forest fire started in Tanzania,  until 13/09/2025.",Wildfire,ha,5279,Joint Research Center of the European Commission,"Sun, 07 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025041,-9.26787708990123,35.418060048347805,31.4180600483478 39.4180600483478 -13.2678770899012 -5.26787708990123
+WF1025042,AUS,Australia,Green forest fire alert in Australia,"On 07/09/2025, a forest fire started in Australia,  until 13/09/2025.",Wildfire,ha,5869,Joint Research Center of the European Commission,"Sun, 07 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025042,-12.180728492100682,134.72916319471165,130.729163194712 138.729163194712 -16.1807284921007 -8.18072849210068
+WF1025014,BOL,Bolivia,Green forest fire alert in Bolivia,"On 07/09/2025, a forest fire started in Bolivia,  until 11/09/2025.",Wildfire,ha,7316,Joint Research Center of the European Commission,"Sun, 07 Sep 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025014,-15.517961524780132,-64.515853594435,-68.515853594435 -60.515853594435 -19.5179615247801 -11.5179615247801
+WF1025009,BRA,Brazil,Green forest fire alert in Brazil,"On 06/09/2025, a forest fire started in Brazil,  until 12/09/2025.",Wildfire,ha,6699,Joint Research Center of the European Commission,"Sat, 06 Sep 2025 00:00:00 GMT","Fri, 12 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025009,-5.950708870670149,-45.784490794007361,-49.7844907940074 -41.7844907940074 -9.95070887067015 -1.95070887067015
+WF1025010,BRA,Brazil,Green forest fire alert in Brazil,"On 06/09/2025, a forest fire started in Brazil,  until 12/09/2025.",Wildfire,ha,5506,Joint Research Center of the European Commission,"Sat, 06 Sep 2025 00:00:00 GMT","Fri, 12 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025010,-14.518632209826597,-48.773704147654307,-52.7737041476543 -44.7737041476543 -18.5186322098266 -10.5186322098266
+WF1025028,BRA,Brazil,Green forest fire alert in Brazil,"On 06/09/2025, a forest fire started in Brazil,  until 12/09/2025.",Wildfire,ha,5201,Joint Research Center of the European Commission,"Sat, 06 Sep 2025 00:00:00 GMT","Fri, 12 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025028,-12.817653929417743,-52.952740798438192,-56.9527407984382 -48.9527407984382 -16.8176539294177 -8.81765392941774
+WF1025006,BRA,Brazil,Green forest fire alert in Brazil,"On 06/09/2025, a forest fire started in Brazil,  until 11/09/2025.",Wildfire,ha,11901,Joint Research Center of the European Commission,"Sat, 06 Sep 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025006,-11.30635430136198,-46.502305378726795,-50.5023053787268 -42.5023053787268 -15.306354301362 -7.30635430136198
+WF1025015,BRA,Brazil,Green forest fire alert in Brazil,"On 06/09/2025, a forest fire started in Brazil,  until 13/09/2025.",Wildfire,ha,9111,Joint Research Center of the European Commission,"Sat, 06 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025015,-11.141549408110901,-48.397308888479181,-52.3973088884792 -44.3973088884792 -15.1415494081109 -7.1415494081109
+WF1025019,BRA,Brazil,Green forest fire alert in Brazil,"On 06/09/2025, a forest fire started in Brazil,  until 13/09/2025.",Wildfire,ha,5429,Joint Research Center of the European Commission,"Sat, 06 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025019,-14.904850614449382,-55.848312196366692,-59.8483121963667 -51.8483121963667 -18.9048506144494 -10.9048506144494
+FL1103490,COL,Colombia,Green flood alert in Colombia,"On 05/09/2025, a flood started in Colombia, lasting until 09/09/2025 (last update). The flood caused 0 deaths and 0 displaced .",Flood,,0,Joint Research Center of the European Commission,"Fri, 05 Sep 2025 01:00:00 GMT","Tue, 09 Sep 2025 01:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=FL&eventid=1103490,7.5804751,-75.3998498,-79.3998498 -71.3998498 3.5804751 11.5804751
+WF1024997,AUS,Australia,Green forest fire alert in Australia,"On 05/09/2025, a forest fire started in Australia,  until 09/09/2025.",Wildfire,ha,6084,Joint Research Center of the European Commission,"Fri, 05 Sep 2025 00:00:00 GMT","Tue, 09 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024997,-17.374768238079621,122.88175249927239,118.881752499272 126.881752499272 -21.3747682380796 -13.3747682380796
+WF1024954,AUS,Australia,Green forest fire alert in Australia,"On 05/09/2025, a forest fire started in Australia,  until 11/09/2025.",Wildfire,ha,8164,Joint Research Center of the European Commission,"Fri, 05 Sep 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024954,-17.44507449902126,123.09752063131654,119.097520631317 127.097520631317 -21.4450744990213 -13.4450744990213
+WF1025016,BRA,Brazil,Green forest fire alert in Brazil,"On 05/09/2025, a forest fire started in Brazil,  until 12/09/2025.",Wildfire,ha,6477,Joint Research Center of the European Commission,"Fri, 05 Sep 2025 00:00:00 GMT","Fri, 12 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025016,-9.0594307567038719,-49.806396822287233,-53.8063968222872 -45.8063968222872 -13.0594307567039 -5.05943075670387
+WF1025043,BRA,Brazil,Green forest fire alert in Brazil,"On 05/09/2025, a forest fire started in Brazil,  until 13/09/2025.",Wildfire,ha,5127,Joint Research Center of the European Commission,"Fri, 05 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025043,-13.821667597146165,-46.265554619181565,-50.2655546191816 -42.2655546191816 -17.8216675971462 -9.82166759714617
+WF1024998,BRA,Brazil,Green forest fire alert in Brazil,"On 04/09/2025, a forest fire started in Brazil,  until 13/09/2025.",Wildfire,ha,9577,Joint Research Center of the European Commission,"Thu, 04 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024998,-16.933192581654282,-45.8045597594791,-49.8045597594791 -41.8045597594791 -20.9331925816543 -12.9331925816543
+WF1025029,BRA,Brazil,Green forest fire alert in Brazil,"On 04/09/2025, a forest fire started in Brazil,  until 13/09/2025.",Wildfire,ha,6250,Joint Research Center of the European Commission,"Thu, 04 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025029,-15.815424731932952,-52.260805938373807,-56.2608059383738 -48.2608059383738 -19.815424731933 -11.815424731933
+WF1025011,BRA,Brazil,Green forest fire alert in Brazil,"On 04/09/2025, a forest fire started in Brazil,  until 12/09/2025.",Wildfire,ha,7077,Joint Research Center of the European Commission,"Thu, 04 Sep 2025 00:00:00 GMT","Fri, 12 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025011,-9.0882316800610887,-46.988106438396365,-50.9881064383964 -42.9881064383964 -13.0882316800611 -5.08823168006109
+WF1024958,BRA,Brazil,Green forest fire alert in Brazil,"On 04/09/2025, a forest fire started in Brazil,  until 11/09/2025.",Wildfire,ha,7446,Joint Research Center of the European Commission,"Thu, 04 Sep 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024958,-11.001398514087736,-45.970222375174465,-49.9702223751745 -41.9702223751745 -15.0013985140877 -7.00139851408774
+WF1025020,BRA,Brazil,Green forest fire alert in Brazil,"On 03/09/2025, a forest fire started in Brazil,  until 13/09/2025.",Wildfire,ha,8034,Joint Research Center of the European Commission,"Wed, 03 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025020,-16.5374290765731,-55.140314873557692,-59.1403148735577 -51.1403148735577 -20.5374290765731 -12.5374290765731
+WF1025017,AGO,Angola,Green forest fire alert in Angola,"On 03/09/2025, a forest fire started in Angola,  until 13/09/2025.",Wildfire,ha,6354,Joint Research Center of the European Commission,"Wed, 03 Sep 2025 00:00:00 GMT","Sat, 13 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025017,-8.5063978774235753,15.269153995182839,11.2691539951828 19.2691539951828 -12.5063978774236 -4.50639787742358
+FL1103483,FRA,France,Green flood alert in France,"On 02/09/2025, a flood started in France, lasting until 10/09/2025 (last update). The flood caused 0 deaths and 0 displaced .",Flood,,0,Joint Research Center of the European Commission,"Tue, 02 Sep 2025 01:00:00 GMT","Wed, 10 Sep 2025 01:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=FL&eventid=1103483,49.0207259,6.53803517035795,2.53803517035795 10.538035170358 45.0207259 53.0207259
+WF1024978,BRA,Brazil,Green forest fire alert in Brazil,"On 02/09/2025, a forest fire started in Brazil,  until 10/09/2025.",Wildfire,ha,6421,Joint Research Center of the European Commission,"Tue, 02 Sep 2025 00:00:00 GMT","Wed, 10 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024978,-9.7071888204132435,-51.061355300928824,-55.0613553009288 -47.0613553009288 -13.7071888204132 -5.70718882041324
+WF1025003,AGO,Angola,Green forest fire alert in Angola,"On 02/09/2025, a forest fire started in Angola,  until 10/09/2025.",Wildfire,ha,6132,Joint Research Center of the European Commission,"Tue, 02 Sep 2025 00:00:00 GMT","Wed, 10 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025003,-16.064273644157897,15.917233050886809,11.9172330508868 19.9172330508868 -20.0642736441579 -12.0642736441579
+WF1024931,AUS,Australia,Green forest fire alert in Australia,"On 02/09/2025, a forest fire started in Australia,  until 10/09/2025.",Wildfire,ha,8713,Joint Research Center of the European Commission,"Tue, 02 Sep 2025 00:00:00 GMT","Wed, 10 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024931,-14.228605967880744,129.70862946007892,125.708629460079 133.708629460079 -18.2286059678807 -10.2286059678807
+WF1024960,CAN,Canada,Green forest fire alert in Canada,"On 02/09/2025, a forest fire started in Canada,  until 09/09/2025.",Wildfire,ha,5028,Joint Research Center of the European Commission,"Tue, 02 Sep 2025 00:00:00 GMT","Tue, 09 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024960,49.7055254552147,-121.02970615389114,-125.029706153891 -117.029706153891 45.7055254552147 53.7055254552147
+WF1024964,AGO,Angola,Green forest fire alert in Angola,"On 02/09/2025, a forest fire started in Angola,  until 11/09/2025.",Wildfire,ha,13008,Joint Research Center of the European Commission,"Tue, 02 Sep 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024964,-16.546872706959977,21.187713731905021,17.187713731905 25.187713731905 -20.54687270696 -12.54687270696
+WF1025000,CAN,Canada,Green forest fire alert in Canada,"On 02/09/2025, a forest fire started in Canada,  until 11/09/2025.",Wildfire,ha,5547,Joint Research Center of the European Commission,"Tue, 02 Sep 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025000,52.531872121693048,-125.94601739651225,-129.946017396512 -121.946017396512 48.531872121693 56.531872121693
+WF1025021,BRA,Brazil,Green forest fire alert in Brazil,"On 02/09/2025, a forest fire started in Brazil,  until 12/09/2025.",Wildfire,ha,5806,Joint Research Center of the European Commission,"Tue, 02 Sep 2025 00:00:00 GMT","Fri, 12 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025021,-13.238409022417237,-51.764920546253748,-55.7649205462537 -47.7649205462537 -17.2384090224172 -9.23840902241724
+WF1024933,BRA,Brazil,Green forest fire alert in Brazil,"On 02/09/2025, a forest fire started in Brazil,  until 12/09/2025.",Wildfire,ha,8622,Joint Research Center of the European Commission,"Tue, 02 Sep 2025 00:00:00 GMT","Fri, 12 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024933,-15.04954026508913,-50.070351457334631,-54.0703514573346 -46.0703514573346 -19.0495402650891 -11.0495402650891
+WF1024937,USA,United States,Green forest fire alert in United States,"On 02/09/2025, a forest fire started in United States,  until 12/09/2025.",Wildfire,ha,9631,Joint Research Center of the European Commission,"Tue, 02 Sep 2025 00:00:00 GMT","Fri, 12 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024937,47.72379025285705,-120.4949362081091,-124.494936208109 -116.494936208109 43.7237902528571 51.7237902528571
+WF1024951,USA,United States,Green forest fire alert in United States,"On 02/09/2025, a forest fire started in United States,  until 12/09/2025.",Wildfire,ha,8700,Joint Research Center of the European Commission,"Tue, 02 Sep 2025 00:00:00 GMT","Fri, 12 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024951,47.908697554797527,-118.4363422836294,-122.436342283629 -114.436342283629 43.9086975547975 51.9086975547975
+WF1024999,BRA,Brazil,Green forest fire alert in Brazil,"On 02/09/2025, a forest fire started in Brazil,  until 12/09/2025.",Wildfire,ha,7839,Joint Research Center of the European Commission,"Tue, 02 Sep 2025 00:00:00 GMT","Fri, 12 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024999,-10.150445635969056,-46.227147387387504,-50.2271473873875 -42.2271473873875 -14.1504456359691 -6.15044563596906
+WF1024976,CAN,Canada,Green forest fire alert in Canada,"On 01/09/2025, a forest fire started in Canada,  until 11/09/2025.",Wildfire,ha,15929,Joint Research Center of the European Commission,"Mon, 01 Sep 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024976,55.434278533337583,-109.30260587932598,-113.302605879326 -105.302605879326 51.4342785333376 59.4342785333376
+WF1025008,AGO,Angola,Green forest fire alert in Angola,"On 01/09/2025, a forest fire started in Angola,  until 11/09/2025.",Wildfire,ha,6078,Joint Research Center of the European Commission,"Mon, 01 Sep 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1025008,-7.1960386209405991,15.995908541904472,11.9959085419045 19.9959085419045 -11.1960386209406 -3.1960386209406
+WF1024938,CAN,Canada,Green forest fire alert in Canada,"On 01/09/2025, a forest fire started in Canada,  until 11/09/2025.",Wildfire,ha,10935,Joint Research Center of the European Commission,"Mon, 01 Sep 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024938,52.255427308223361,-124.95218892206124,-128.952188922061 -120.952188922061 48.2554273082234 56.2554273082234
+WF1024896,BRA,Brazil,Green forest fire alert in Brazil,"On 01/09/2025, a forest fire started in Brazil,  until 11/09/2025.",Wildfire,ha,8464,Joint Research Center of the European Commission,"Mon, 01 Sep 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024896,-15.560523749159991,-48.363659403216587,-52.3636594032166 -44.3636594032166 -19.56052374916 -11.56052374916
+WF1024947,BRA,Brazil,Green forest fire alert in Brazil,"On 01/09/2025, a forest fire started in Brazil,  until 10/09/2025.",Wildfire,ha,11043,Joint Research Center of the European Commission,"Mon, 01 Sep 2025 00:00:00 GMT","Wed, 10 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024947,-15.738815155204822,-53.5977697513085,-57.5977697513085 -49.5977697513085 -19.7388151552048 -11.7388151552048
+TC1001203,USA,United States,Green alert for tropical cyclone KIKO-25. Population affected by Category 1 (120 km/h) wind speeds or higher is 0  (0 in Tropical Storm).,"From 31/08/2025 to 10/09/2025, a Tropical Depression (maximum wind speed of 231 km/h) KIKO-25 was active in CentralPacific. The cyclone affects these countries: United States (vulnerability Low). Estimated population affected by category 1 (120 km/h) wind speeds or higher is 0  (0 in tropical storm).",Tropical Cyclone,km/h,231.48,Joint Research Center of the European Commission,"Sun, 31 Aug 2025 09:00:00 GMT","Wed, 10 Sep 2025 15:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=TC&eventid=1001203,22.9,-158.1,-156.316852785912 -130.316852785912 5.00489476253333 31.0048947625333
+FL1103491,VNM,Vietnam,Green flood alert in Vietnam,"On 31/08/2025, a flood started in Vietnam, lasting until 09/09/2025 (last update). The flood caused 1 deaths and 0 displaced .",Flood,,0,Joint Research Center of the European Commission,"Sun, 31 Aug 2025 01:00:00 GMT","Tue, 09 Sep 2025 01:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=FL&eventid=1103491,11.6614957,108.1335279,104.1335279 112.1335279 7.6614957 15.6614957
+WF1024892,AGO,Angola,Green forest fire alert in Angola,"On 31/08/2025, a forest fire started in Angola,  until 10/09/2025.",Wildfire,ha,19869,Joint Research Center of the European Commission,"Sun, 31 Aug 2025 00:00:00 GMT","Wed, 10 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024892,-16.291041643341632,19.327982066182773,15.3279820661828 23.3279820661828 -20.2910416433416 -12.2910416433416
+WF1024979,BRA,Brazil,Green forest fire alert in Brazil,"On 31/08/2025, a forest fire started in Brazil,  until 09/09/2025.",Wildfire,ha,6019,Joint Research Center of the European Commission,"Sun, 31 Aug 2025 00:00:00 GMT","Tue, 09 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024979,-6.8879669750917083,-45.567377246755761,-49.5673772467558 -41.5673772467558 -10.8879669750917 -2.88796697509171
+WF1024980,BRA,Brazil,Green forest fire alert in Brazil,"On 31/08/2025, a forest fire started in Brazil,  until 09/09/2025.",Wildfire,ha,6311,Joint Research Center of the European Commission,"Sun, 31 Aug 2025 00:00:00 GMT","Tue, 09 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024980,-14.79489898773293,-48.175405764871826,-52.1754057648718 -44.1754057648718 -18.7948989877329 -10.7948989877329
+WF1024915,AUS,Australia,Green forest fire alert in Australia,"On 31/08/2025, a forest fire started in Australia,  until 09/09/2025.",Wildfire,ha,8946,Joint Research Center of the European Commission,"Sun, 31 Aug 2025 00:00:00 GMT","Tue, 09 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024915,-12.67340578628364,132.33812971484028,128.33812971484 136.33812971484 -16.6734057862836 -8.67340578628364
+WF1024927,AUS,Australia,Green forest fire alert in Australia,"On 31/08/2025, a forest fire started in Australia,  until 09/09/2025.",Wildfire,ha,5922,Joint Research Center of the European Commission,"Sun, 31 Aug 2025 00:00:00 GMT","Tue, 09 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024927,-12.325516830646645,131.20366055251111,127.203660552511 135.203660552511 -16.3255168306466 -8.32551683064665
+WF1024849,AUS,Australia,Green forest fire alert in Australia,"On 31/08/2025, a forest fire started in Australia,  until 09/09/2025.",Wildfire,ha,39754,Joint Research Center of the European Commission,"Sun, 31 Aug 2025 00:00:00 GMT","Tue, 09 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024849,-15.744381549767501,127.12636180247013,123.12636180247 131.12636180247 -19.7443815497675 -11.7443815497675
+WF1024994,BRA,Brazil,Green forest fire alert in Brazil,"On 31/08/2025, a forest fire started in Brazil,  until 10/09/2025.",Wildfire,ha,7833,Joint Research Center of the European Commission,"Sun, 31 Aug 2025 00:00:00 GMT","Wed, 10 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024994,-9.9853247677926724,-51.652713106486921,-55.6527131064869 -47.6527131064869 -13.9853247677927 -5.98532476779267
+WF1024904,USA,United States,Green forest fire alert in United States,"On 30/08/2025, a forest fire started in United States,  until 09/09/2025.",Wildfire,ha,8592,Joint Research Center of the European Commission,"Sat, 30 Aug 2025 00:00:00 GMT","Tue, 09 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024904,48.803232689253363,-117.86574509855751,-121.865745098558 -113.865745098558 44.8032326892534 52.8032326892534
+WF1024819,AUS,Australia,Green forest fire alert in Australia,"On 30/08/2025, a forest fire started in Australia,  until 09/09/2025.",Wildfire,ha,84271,Joint Research Center of the European Commission,"Sat, 30 Aug 2025 00:00:00 GMT","Tue, 09 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024819,-16.360291795343443,129.81340662186392,125.813406621864 133.813406621864 -20.3602917953434 -12.3602917953434
+WF1024831,ZMB,Zambia,Green forest fire alert in Zambia,"On 30/08/2025, a forest fire started in Zambia,  until 09/09/2025.",Wildfire,ha,29481,Joint Research Center of the European Commission,"Sat, 30 Aug 2025 00:00:00 GMT","Tue, 09 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=WF&eventid=1024831,-14.565097176519334,26.29694373023975,22.2969437302398 30.2969437302398 -18.5650971765193 -10.5650971765193
+FL1103471,HRV,Croatia,Green flood alert in Croatia,"On 29/08/2025, a flood started in Croatia, lasting until 12/09/2025 (last update). The flood caused 0 deaths and 0 displaced .",Flood,,0,Joint Research Center of the European Commission,"Fri, 29 Aug 2025 01:00:00 GMT","Fri, 12 Sep 2025 01:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=FL&eventid=1103471,45.3267976,14.442208,10.442208 18.442208 41.3267976 49.3267976
+FL1103434,IND,India,Green flood alert in India,"On 16/08/2025, a flood started in India, lasting until 09/09/2025 (last update). The flood caused 79 deaths and 28930 displaced .",Flood,,0,Joint Research Center of the European Commission,"Sat, 16 Aug 2025 01:00:00 GMT","Tue, 09 Sep 2025 01:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=FL&eventid=1103434,27.633333,77.583333,73.583333 81.583333 23.633333 31.633333
+FL1103443,ITA,Italy,Green flood alert in Italy,"On 15/08/2025, a flood started in Italy, lasting until 11/09/2025 (last update). The flood caused 1 deaths and 67 displaced .",Flood,,0,Joint Research Center of the European Commission,"Fri, 15 Aug 2025 01:00:00 GMT","Thu, 11 Sep 2025 01:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=FL&eventid=1103443,45.5703694,9.7732524,5.7732524 13.7732524 41.5703694 49.5703694
+FL1103425,MEX,Mexico,Green flood alert in Mexico,"On 06/08/2025, a flood started in Mexico, lasting until 10/09/2025 (last update). The flood caused 5 deaths and 115 displaced .",Flood,,0,Joint Research Center of the European Commission,"Wed, 06 Aug 2025 01:00:00 GMT","Wed, 10 Sep 2025 01:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=FL&eventid=1103425,20.5226152,-99.8914752,-103.8914752 -95.8914752 16.5226152 24.5226152
+DR1018050,GEO,"Georgia, Russia","Drought is on going in Georgia, Russia",The  Drought alert level is Green.,Drought,km2,76987,Joint Research Center of the European Commission,"Mon, 21 Jul 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1018050,43.218,43.614,39.614 47.614 39.218 47.218
+DR1017944,COD,"Democratic Republic of Congo, Central African Republic, Eritrea, Ethiopia, Sudan, South Sudan","Drought is on going in Democratic Republic of Congo, Central African Republic, Eritrea, Ethiopia, Sudan, South Sudan",The  Drought alert level is Green.,Drought,km2,559106,Joint Research Center of the European Commission,"Sat, 21 Jun 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1017944,7.955,29.77,25.77 33.77 3.955 11.955
+DR1017902,MNG,"Mongolia, Russia","Drought is on going in Mongolia, Russia",The  Drought alert level is Green.,Drought,km2,159257,Joint Research Center of the European Commission,"Wed, 21 May 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1017902,50.01,107.803,103.803 111.803 46.01 54.01
+DR1017933,USA,United States,Drought is on going in United States,The  Drought alert level is Green.,Drought,km2,25596,Joint Research Center of the European Commission,"Wed, 21 May 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1017933,46.491,-117.191,-121.191 -113.191 42.491 50.491
+DR1017922,CHN,"China, Kazakhstan, Mongolia, Russia","Drought is on going in China, Kazakhstan, Mongolia, Russia",The  Drought alert level is Green.,Drought,km2,181709,Joint Research Center of the European Commission,"Wed, 21 May 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1017922,48.553,91.696,87.696 95.696 44.553 52.553
+DR1016679,BGR,"Bulgaria, Türkiye","Drought is on going in Bulgaria, Türkiye",The  Drought alert level is Green.,Drought,km2,118684,Joint Research Center of the European Commission,"Wed, 21 May 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1016679,40.621,31.849,27.849 35.849 36.621 44.621
+DR1017863,ETH,"Ethiopia, Somalia","Drought is on going in Ethiopia, Somalia",The  Drought alert level is Orange.,Drought,km2,128800,Joint Research Center of the European Commission,"Mon, 21 Apr 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1017863,10.999,40.5,36.5 44.5 6.999 14.999
+DR1017904,BHS,"The Bahamas, Belize, Cuba, Guatemala, Mexico","Drought is on going in The Bahamas, Belize, Cuba, Guatemala, Mexico",The  Drought alert level is Green.,Drought,km2,197163,Joint Research Center of the European Commission,"Fri, 21 Mar 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1017904,18.196,-90.816,-94.816 -86.816 14.196 22.196
+DR1018001,CAN,Canada,Drought is on going in Canada,The  Drought alert level is Green.,Drought,km2,157423,Joint Research Center of the European Commission,"Fri, 21 Feb 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1018001,54.174,-109.722,-113.722 -105.722 50.174 58.174
+DR1016963,MEX,"Mexico, United States","Drought is on going in Mexico, United States",The  Drought alert level is Orange.,Drought,km2,226147,Joint Research Center of the European Commission,"Fri, 21 Feb 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1016963,32.185,-110.878,-114.878 -106.878 28.185 36.185
+DR1017644,BGD,"Bangladesh, Bhutan, China, India, Nepal","Drought is on going in Bangladesh, Bhutan, China, India, Nepal",The  Drought alert level is Green.,Drought,km2,175367,Joint Research Center of the European Commission,"Tue, 21 Jan 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1017644,27.393,87.674,83.674 91.674 23.393 31.393
+DR1017869,AUS,Australia,Drought is on going in Australia,The  Drought alert level is Green.,Drought,km2,68266,Joint Research Center of the European Commission,"Tue, 21 Jan 2025 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1017869,-33.979,138.654,134.654 142.654 -37.979 -29.979
+DR1016686,DZA,"Algeria, Morocco","Drought is on going in Algeria, Morocco",The  Drought alert level is Green.,Drought,km2,10188,Joint Research Center of the European Commission,"Thu, 21 Nov 2024 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1016686,34.5,-2.5,-6.5 1.5 30.5 38.5
+DR1017535,AFG,"Afghanistan, Armenia, Azerbaijan, China, Iraq, Islamic Republic of Iran, Kyrgyzstan, Kazakhstan, Lebanon, Pakistan, Syria, Tajikistan, Turkmenistan, Türkiye, Uzbekistan","Drought is on going in Afghanistan, Armenia, Azerbaijan, China, Iraq, Islamic Republic of Iran, Kyrgyzstan, Kazakhstan, Lebanon, Pakistan, Syria, Tajikistan, Turkmenistan, Türkiye, Uzbekistan",The  Drought alert level is Orange.,Drought,km2,1281491,Joint Research Center of the European Commission,"Mon, 21 Oct 2024 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1017535,38.59,62.524,58.524 66.524 34.59 42.59
+DR1016401,ALB,"Albania, Austria, Bosnia & Herzegovina, Bulgaria, France, Croatia, Hungary, Montenegro, The Republic of North Macedonia, Romania, Serbia, Slovenia, Slovakia, Ukraine,","Drought is on going in Albania, Austria, Bosnia & Herzegovina, Bulgaria, France, Croatia, Hungary, Montenegro, The Republic of North Macedonia, Romania, Serbia, Slovenia, Slovakia, Ukraine,",The  Drought alert level is Green.,Drought,km2,631824,Joint Research Center of the European Commission,"Mon, 21 Oct 2024 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1016401,45.994,14.891,10.891 18.891 41.994 49.994
+DR1017173,CHN,China,Drought is on going in China,The  Drought alert level is Green.,Drought,km2,429879,Joint Research Center of the European Commission,"Tue, 21 May 2024 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1017173,33.44,111.759,107.759 115.759 29.44 37.44
+DR1017051,MDA,"Moldova, Russia, Ukraine","Drought is on going in Moldova, Russia, Ukraine",The  Drought alert level is Orange.,Drought,km2,230163,Joint Research Center of the European Commission,"Thu, 21 Mar 2024 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1017051,47.428,34.977,30.977 38.977 43.428 51.428
+DR1016995,BFA,"Burkina Faso, Benin, Cote d'Ivoire, Ghana, Nigeria, Togo","Drought is on going in Burkina Faso, Benin, Cote d'Ivoire, Ghana, Nigeria, Togo",The  Drought alert level is Green.,Drought,km2,437374,Joint Research Center of the European Commission,"Wed, 21 Feb 2024 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1016995,8.185,5.763,1.763 9.763 4.185 12.185
+DR1016833,MDG,Madagascar,Drought is on going in Madagascar,The  Drought alert level is Green.,Drought,km2,79507,Joint Research Center of the European Commission,"Sat, 21 Oct 2023 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1016833,-15.593,48.842,44.842 52.842 -19.593 -11.593
+DR1016449,BOL,"Bolivia, Brazil","Drought is on going in Bolivia, Brazil",The  Drought alert level is Orange.,Drought,km2,566807,Joint Research Center of the European Commission,"Wed, 21 Sep 2022 00:00:00 GMT","Thu, 11 Sep 2025 00:00:00 GMT",https://www.gdacs.org/report.aspx?eventtype=DR&eventid=1016449,-8.016,-50.837,-54.837 -46.837 -12.016 -4.016
+`
+                showStatus('Parsing CSV data...', true);
+                
+                // Parse CSV with Papa Parse
+                const results = Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    dynamicTyping: true,
+                    delimitersToGuess: [',', '\t', '|', ';']
+                });
+                
+                if (results.errors.length > 0) {
+                    console.warn('CSV parsing warnings:', results.errors);
+                }
+                
+                var data = results.data;
+                console.log('Parsed data:', data);
+                console.log('Headers:', results.meta.fields);
+                
+                if (data.length === 0) {
+                    throw new Error('No data found in CSV');
+                }
+                
+                showStatus('Plotting events on map...', true);
+                
+                // Clear existing markers
+                markersLayer.clearLayers();
+                
+                let validPoints = 0;
+                let totalPoints = 0;
+                
+                data.forEach((row, index) => {
+                    totalPoints++;
+                    
+                    // Try to find latitude and longitude columns (case-insensitive)
+                    let lat, lng;
+                    const headers = Object.keys(row);
+                    
+                    for (let header of headers) {
+                        const lowerHeader = header.toLowerCase().trim();
+                        if (lowerHeader.includes('lat') && !lng) {
+                            lat = parseFloat(row[header]);
+                        } else if (lowerHeader.includes('lon') || lowerHeader.includes('lng')) {
+                            lng = parseFloat(row[header]);
+                        }
+                    }
+                    
+                    // If standard headers don't work, try other common patterns
+                    if (!lat || !lng) {
+                        for (let header of headers) {
+                            const lowerHeader = header.toLowerCase().trim();
+                            if ((lowerHeader.includes('y') || lowerHeader.includes('north')) && !lat) {
+                                lat = parseFloat(row[header]);
+                            } else if ((lowerHeader.includes('x') || lowerHeader.includes('east')) && !lng) {
+                                lng = parseFloat(row[header]);
+                            }
+                        }
+                    }
+                    
+                    if (lat && lng && !isNaN(lat) && !isNaN(lng) && 
+                        lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+                        
+                        validPoints++;
+                        
+                        const marker = createCustomMarker(lat, lng, row);
+                        
+                        // Create popup content
+                        let popupContent = '<div class="custom-popup">';
+                        popupContent += `<div class="popup-title">Event #${index + 1}</div>`;
+                        popupContent += '<div class="popup-details">';
+                        
+                        // Show key information
+                        for (let key in row) {
+                            if (row[key] && key.toLowerCase().trim() !== 'lat' && 
+                                key.toLowerCase().trim() !== 'lng' && 
+                                key.toLowerCase().trim() !== 'latitude' && 
+                                key.toLowerCase().trim() !== 'longitude') {
+                                popupContent += `<strong>${key}:</strong> ${row[key]}<br>`;
+                            }
+                        }
+                        
+                        popupContent += `<strong>Coordinates:</strong> ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                        popupContent += '</div></div>';
+                        
+                        marker.bindPopup(popupContent);
+                        markersLayer.addLayer(marker);
+                    }
+                });
+                
+                // Update statistics
+                document.getElementById('totalEvents').textContent = validPoints;
+                
+                if (validPoints > 0) {
+                    hideStatus();
+                    showStatus(`✅ Successfully plotted ${validPoints} events out of ${totalPoints} records`, false);
+                    setTimeout(hideStatus, 3000);
+                    
+                    // Fit map to show all markers
+                    if (markersLayer.getLayers().length > 0) {
+                        map.fitBounds(markersLayer.getBounds(), { padding: [20, 20] });
+                    }
+                } else {
+                    showStatus(`⚠️ No valid coordinates found in ${totalPoints} records. Check CSV structure.`, false);
+                    console.log('Sample data:', data.slice(0, 3));
+                    console.log('Available headers:', results.meta.fields);
+                }
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                showStatus(`❌ Error loading data: ${error.message}`, false);
+            } finally {
+                loadBtn.disabled = false;
+            }
+        }
+        
+        function clearMap() {
+            markersLayer.clearLayers();
+            document.getElementById('totalEvents').textContent = '-';
+            hideStatus();
+        }
+        
+        function centerMap() {
+            map.setView([20, 0], 2);
+        }
+        
+        // Event listeners
+        document.getElementById('loadData').addEventListener('click', loadGDACSData);
+        document.getElementById('clearMap').addEventListener('click', clearMap);
+        document.getElementById('centerMap').addEventListener('click', centerMap);
+        
+        // Add some sample instructions
+        showStatus('👆 Click "Load Disaster Data" to fetch and visualize GDACS events', false);
+    </script>
+</body>
+</html>

@@ -1,9 +1,14 @@
 {
+  "type": "module",
   "scripts": {
-    "test": "playwright test",
-    "qa:discovery": "playwright test tests/discovery.spec.ts"
+    "qa:mcp": "tsx src/agent-discovery.ts"
+  },
+  "dependencies": {
+    "@google/genai": "latest",
+    "@playwright/test": "latest",
+    "tsx": "latest"
   },
   "devDependencies": {
-    "@playwright/test": "latest"
+    "typescript": "latest"
   }
 }

@@ -1,0 +1,9 @@
+{
+  "scripts": {
+    "test": "playwright test",
+    "qa:discovery": "playwright test tests/discovery.spec.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "latest"
+  }
+}

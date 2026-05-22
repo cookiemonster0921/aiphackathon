@@ -1,0 +1,82 @@
+name: Browser Discovery QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "URL to test"
+        required: true
+        type: string
+      goal:
+        description: "What should the QA agent test?"
+        required: true
+        type: string
+      depth:
+        description: "Discovery depth"
+        required: true
+        default: "normal"
+        type: choice
+        options:
+          - smoke
+          - normal
+          - deep
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm install
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Run browser-first discovery
+        env:
+          TARGET_URL: ${{ inputs.target_url }}
+          QA_GOAL: ${{ inputs.goal }}
+          QA_DEPTH: ${{ inputs.depth }}
+        run: npx playwright test tests/discovery.spec.ts
+
+      - name: Upload raw artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-discovery-artifacts
+          path: |
+            site/
+            test-results/
+            playwright-report/
+
+      - name: Upload Pages artifact
+        if: always()
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: discover
+    if: always()
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy report to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
